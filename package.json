@@ -1,0 +1,16 @@
+{
+  "name": "mapproject",
+  "version": "1.0.0",
+  "description": "카카오맵 마커 프로젝트",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "mariadb": "^3.4.5"
+  }
+}
