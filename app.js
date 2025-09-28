@@ -17,8 +17,8 @@ app.use(express.static(__dirname));
 app.use(express.json())
 
 // 라우팅
-// REST API : 조회 
-app.get('/api/markers', async (req, res) => {
+// 마커 조회 
+app.get('/markers', async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
@@ -29,5 +29,31 @@ app.get('/api/markers', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     } finally { 
       if (conn) conn.release(); // 또는 conn.end() 대신 conn.release()를 사용하여 커넥션을 풀에 반환
+    }
+})
+
+// 마커 생성
+app.post('/markers', async (req, res) => {
+    const {name, lat, lng} = req.body
+    let conn;
+    try {
+        conn = await pool.getConnection();
+        const result = await conn.query(
+            "INSERT INTO markers (name, lat, lng) VALUES (?, ?, ?)",
+            [name, parseFloat(lat), parseFloat(lng)]
+        )
+        // const [warnings] = await conn.query("SHOW WARNINGS");
+        // console.log(warnings);
+        res.json({
+            success : true,
+            id: Number(result.insertId)
+        })
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            error: 'Internal Server Error'
+        })
+    } finally {
+        if (conn) conn.release();
     }
 })

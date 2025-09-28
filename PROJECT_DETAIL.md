@@ -40,6 +40,7 @@
 
 #### **3.2. 데이터베이스 설계 (Schema)**
 - **Database:** `map_project`
+- **Database:** `MAPMARKER`
 - **Table:** `markers`
 
 | Column      | Type             | 제약조건                  | 설명                         |
@@ -53,7 +54,7 @@
 
 ### **4. API 엔드포인트 명세**
 
-#### **4.1. `GET /api/markers`**
+#### **4.1. `GET /markers`**
 - **설명:** 저장된 모든 마커의 정보를 조회합니다.
 - **Method:** `GET`
 - **Request:** 없음
@@ -137,8 +138,8 @@
 **2. MariaDB에 테이블 생성 및 테스트 데이터 추가**
 - DB 관리툴에서 아래 SQL을 실행합니다.
   ```sql
-  CREATE DATABASE map_project CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-  USE map_project;
+  CREATE DATABASE MAPMARKER CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+  USE MAPMARKER;
   CREATE TABLE markers ( id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100) NOT NULL, description TEXT, lat DECIMAL(10, 7) NOT NULL, lng DECIMAL(10, 7) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP );
   INSERT INTO markers (name, lat, lng) VALUES ('카카오프렌즈 본사', 37.504502, 127.053617);
   INSERT INTO markers (name, lat, lng) VALUES ('국립중앙박물관', 37.523876, 126.980463);
@@ -155,7 +156,7 @@
       port: 3306, 
       user: 'root', 
       password: 'YOUR_PASSWORD', 
-      database: 'map_project',
+      database: 'MAPMARKER',
       connectionLimit: 10
   });
   
@@ -172,7 +173,7 @@
   app.use(express.static(__dirname));
   app.use(express.json());
 
-  app.get('/api/markers', async (req, res) => {
+  app.get('/markers', async (req, res) => {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -205,7 +206,7 @@
       <script>
           document.addEventListener("DOMContentLoaded", function() {
               const map = new kakao.maps.Map(document.getElementById('map'), { center: new kakao.maps.LatLng(37.514575, 127.0495556), level: 5 });
-              fetch('/api/markers').then(response => response.json()).then(markers => {
+              fetch('/markers').then(response => response.json()).then(markers => {
                   markers.forEach(markerInfo => {
                       new kakao.maps.Marker({ position: new kakao.maps.LatLng(markerInfo.lat, markerInfo.lng), title: markerInfo.name }).setMap(map);
                   });
@@ -225,7 +226,7 @@
 - `app.js`의 `app.get(...)` 아래에 다음 코드를 추가합니다.
   ```javascript
   // API: 새 마커 생성
-  app.post('/api/markers', async (req, res) => {
+  app.post('/markers', async (req, res) => {
     const { name, lat, lng } = req.body;
     let conn;
     try {
@@ -236,7 +237,7 @@
   });
 
   // API: 마커 삭제
-  app.delete('/api/markers/:id', async (req, res) => {
+  app.delete('/markers/:id', async (req, res) => {
     const { id } = req.params;
     let conn;
     try {
@@ -267,14 +268,12 @@
       });
   }
 
-  fetch('/api/markers').then(response => response.json()).then(data => data.forEach(displayMarker));
+  fetch('/markers').then(response => response.json()).then(data => data.forEach(displayMarker));
 
   kakao.maps.event.addListener(map, 'click', function(mouseEvent) {
       const name = prompt('마커의 이름을 입력하세요:', '새 마커');
       if (!name) return;
-      const newMarker = { name: name, lat: mouseEvent.latLng.getLat(), lng: mouseEvent.latLng.getLng() };
-      fetch('/api/markers', {
-          method: 'POST',
+            fetch('/markers', {          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newMarker)
       }).then(response => response.json()).then(result => {
@@ -291,7 +290,7 @@
 - `app.js`의 `app.delete(...)` 아래에 다음 코드를 추가합니다.
   ```javascript
   // API: 마커 정보 수정
-  app.put('/api/markers/:id', async (req, res) => {
+  app.put('/markers/:id', async (req, res) => {
     const { id } = req.params;
     const { name } = req.body;
     let conn;
@@ -337,7 +336,7 @@
   function updateMarker(id) {
       const newName = document.getElementById(`edit-name-${id}`).value;
       if (!newName) { alert('이름을 입력하세요.'); return; }
-      fetch(`/api/markers/${id}`, {
+      fetch(`/markers/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: newName })
@@ -346,7 +345,7 @@
 
   function deleteMarker(id) {
       if (!confirm('정말 삭제하시겠습니까?')) return;
-      fetch(`/api/markers/${id}`, { method: 'DELETE' }).then(() => { alert('삭제되었습니다.'); window.location.reload(); });
+      fetch(`/markers/${id}`, { method: 'DELETE' }).then(() => { alert('삭제되었습니다.'); window.location.reload(); });
   }
 
   function createMarker(markerInfo) {
@@ -356,7 +355,7 @@
       return marker;
   }
 
-  fetch('/api/markers').then(response => response.json()).then(data => {
+  fetch('/markers').then(response => response.json()).then(data => {
       const markers = data.map(createMarker);
       clusterer.addMarkers(markers);
   });
@@ -365,7 +364,7 @@
       const name = prompt('마커의 이름을 입력하세요:', '새 마커');
       if (!name) return;
       const newMarkerData = { name: name, lat: mouseEvent.latLng.getLat(), lng: mouseEvent.latLng.getLng() };
-      fetch('/api/markers', {
+      fetch('/markers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newMarkerData)
