@@ -24,7 +24,7 @@
     <input type="text" id="txt_lng" aria-label="lng" class="form-control" disabled>
 </div>
 <button type="button" class="btn btn-primary" onclick="setMarker()">마커등록</button>
-
+<!-- 스크립트 -->
 <script>
 //지도를 담을 영역의 DOM 레퍼런스
 var container = document.getElementById('map'); //지도를 담을 영역의 DOM 레퍼런스
@@ -39,6 +39,10 @@ let inpPlcName  = document.getElementById("txt_plc_name");   // 장소명
 let inpLat      = document.getElementById("txt_lat");        // 위도
 let inpLng      = document.getElementById("txt_lng");        // 경도
 
+let savedMarkers = [];  // 즐겨찾기 전역 배열
+let markersVisible = false;     // 즐겨찾기 마커 보임 여부
+var infowindow;     // 인포윈도우
+
 // 즐겨찾기 마커 이미지
 var imageSrc = "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png"; 
 var imageSize = new kakao.maps.Size(24, 35); // 이미지 크기
@@ -49,23 +53,14 @@ var tempMarker = new kakao.maps.Marker({
                     map : map
                 });
 
-                
-// 마커 클릭 시 마커 위에 표시할 인포윈도우 생성
-var iwContent = `<div>${tempMarker.getPosition()}</div>`, // 인포윈도우 내용
-    iwRemovable = true; // removeable 속성을 ture 로 설정하면 인포윈도우를 닫을 수 있는 x버튼이 표시
-
-// 인포윈도우 생성
-var infowindow = new kakao.maps.InfoWindow({
-    content : iwContent,
-    removable : iwRemovable
-})
-
 // Places 서비스 객체 생성
 var ps = new kakao.maps.services.Places()
 
-
 // 지도에 클릭 이벤트 등록
 kakao.maps.event.addListener(map, 'click', (mouseEvent)=>{
+    if(markersVisible){
+        return;     // 즐겨찾기 모드일 땐 마커찍지 않기
+    }
     // 클릭한 위도, 경도 정보 가져오기
     let latlng = mouseEvent.latLng;
     let getLat = latlng.getLat()
@@ -74,8 +69,10 @@ kakao.maps.event.addListener(map, 'click', (mouseEvent)=>{
     // 마커 위치를 클릭한 위치로 옮깁니다
     tempMarker.setPosition(latlng);
 
-    // 마커 위 인포윈도우 표시
-    infowindow.open(map, tempMarker)
+    // 만약 마커가 사라진 상태라면 다시 지도에 올림
+    if (!tempMarker.getMap()) {
+        tempMarker.setMap(map);
+    }
 
     // 화면 입력부에 위도 경도 설정
     // 소숫점 7자리까지 표현
@@ -83,30 +80,95 @@ kakao.maps.event.addListener(map, 'click', (mouseEvent)=>{
     inpLng.value = Number(getLng.toFixed(7));
 })
 
+// 마커에 클릭 이벤트 등록
+kakao.maps.event.addListener(tempMarker, 'click', (mouseEvent)=>{
+    if(tempMarker.getMap()){
+        tempMarker.setMap(null);
+
+        // 입력부 클리어
+        inpPlcName.value = '';
+        inpLat.value = '';
+        inpLng.value = '';
+    }else{
+        tempMarker.setMap(map);
+    }
+})
+
 
 // DB 받아와서 마커 찍기
 // 전체 마커 조회
 async function getMarkers(){
-    try { // API 요청 경로를 절대 경로로 명시하면 더 명확합니다.
-     const res = await fetch('/markers');       // 요청 대기
-     if (!res.ok) { // fetch가 성공했는지 (HTTP 상태 코드가 200-299인지) 확인합니다.
-        console.error('서버에서 마커 데이터를 가져오는데 실패했습니다. 상태:', res.status);
-        return;
-     }
+    try { 
+        // 이미 보이는 상태면 -> 지도에서 제거하고 끝냄
+        if(markersVisible){
+            savedMarkers.forEach(m=>m.setMap(null));
+            markersVisible = false;
+            return;
+        }
 
-     const markers = await res.json()           // JSON 변환 대기
+        // 서버에서 데이터 가져오기
+        const res = await fetch('/markers');       // 요청 대기
+        if (!res.ok) { // fetch가 성공했는지 (HTTP 상태 코드가 200-299인지) 확인합니다.
+            console.error('서버에서 마커 데이터를 가져오는데 실패했습니다. 상태:', res.status);
+            return;
+        }
 
-     markers.forEach((marker) =>{
+        const markers = await res.json()           // JSON 변환 대기
 
-        const m = new kakao.maps.Marker({
-            map: map,       // 마커를 표시할 지도
-            position: new kakao.maps.LatLng(marker.lat, marker.lng),    // 마커를 표시할 위치
-            title: marker.name,    // 마커의 타이틀, 마커에 마우스를 올리면 타이틀이 표시됩니다
-            image : markerImage
-        });
-    })
+        // 기존 마커 초기화
+        savedMarkers.forEach(m=>m.setMap(null));
+        savedMarkers = [];
+
+        markers.forEach((marker) =>{
+
+            const savedMarker = new kakao.maps.Marker({
+                map: map,       // 마커를 표시할 지도
+                position: new kakao.maps.LatLng(marker.lat, marker.lng),    // 마커를 표시할 위치
+                title: marker.name,    // 마커의 타이틀, 마커에 마우스를 올리면 타이틀이 표시됩니다
+                image : markerImage
+            });
+
+            // savedMarker에 id 셋팅
+            savedMarker.id = marker.id;
+
+            // 마커에 클릭 이벤트 등록
+            kakao.maps.event.addListener(savedMarker, 'click', ()=>{
+
+                // markerId 가져오기
+                const markerId = savedMarker.id;
+
+                // 클릭한 위도, 경도 정보 가져오기
+                let latlng = savedMarker.getPosition();
+                let getLat = latlng.getLat()
+                let getLng = latlng.getLng()
+
+                // 마커 클릭 시 마커 위에 표시할 인포윈도우 생성
+                var iwContent = `<div style="padding:5px;font-size:12px;"><button class="btn btn-dark" onclick="deleteMarker(${markerId})">삭제</button></div>`, // 인포윈도우 내용
+
+                // 인포윈도우 생성
+                infowindow = new kakao.maps.InfoWindow({
+                    content : iwContent,
+                    removable : true // removeable 속성을 true 로 설정하면 인포윈도우를 닫을 수 있는 x버튼이 표시
+                })
+
+                // 마커 위 인포윈도우 표시
+                infowindow.open(map, savedMarker);
+
+                // 화면 입력부에 이름 위도 경도 설정
+                inpPlcName.value = savedMarker.getTitle();
+                // 소숫점 7자리까지 표현
+                inpLat.value = Number(getLat.toFixed(7));
+                inpLng.value = Number(getLng.toFixed(7));
+            })
+
+            // 전역 배열에 저장
+            savedMarkers.push(savedMarker);
+        })
+        // 보이는 상태로 업데이트
+        markersVisible = true;
+
     } catch (error) {
-         console.error(error); // 에러 처리
+        console.error(error); // 에러 처리
     }
 }
 
@@ -150,6 +212,30 @@ function setMarker(){
     .catch(err=>{
         console.error('요청실패:', err);
     })
+}
+
+// 개별 마커 삭제
+function deleteMarker(id){
+
+    if(!confirm("정말 삭제하겠습니까?")) return;
+    fetch(`/markers/${id}`,{
+        method : "DELETE"
+    }).then(res => {
+        if(!res.ok){
+            // 서버에서 에러 응답 반환 시
+            return res.text().then(msg => {
+                throw new Error(msg || `삭제 실패 (status : ${res.status})`)
+            })
+        }
+        return res.json().catch(()=>({}));
+    }).then(()=>{
+        alert("삭제되었습니다.");
+        window.location.reload();
+    }).catch((err)=>{
+        console.error(err);
+        alert(`삭제 중 오류가 발생했습니다 : ${err.message}`);
+    })
+    
 }
 
 
