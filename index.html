@@ -24,7 +24,7 @@
     <input type="text" id="txt_lng" aria-label="lng" class="form-control" disabled>
 </div>
 <button type="button" class="btn btn-primary" onclick="setMarker()">마커등록</button>
-<!-- 스크립트 -->
+<!-- ============================= 스크립트 ========================================== -->
 <script>
 //지도를 담을 영역의 DOM 레퍼런스
 var container = document.getElementById('map'); //지도를 담을 영역의 DOM 레퍼런스
@@ -42,6 +42,7 @@ let inpLng      = document.getElementById("txt_lng");        // 경도
 let savedMarkers = [];  // 즐겨찾기 전역 배열
 let markersVisible = false;     // 즐겨찾기 마커 보임 여부
 var infowindow;     // 인포윈도우
+let curSavedMarker = null;
 
 // 즐겨찾기 마커 이미지
 var imageSrc = "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png"; 
@@ -86,9 +87,8 @@ kakao.maps.event.addListener(tempMarker, 'click', (mouseEvent)=>{
         tempMarker.setMap(null);
 
         // 입력부 클리어
-        inpPlcName.value = '';
-        inpLat.value = '';
-        inpLng.value = '';
+        inpClear();
+
     }else{
         tempMarker.setMap(map);
     }
@@ -103,6 +103,10 @@ async function getMarkers(){
         if(markersVisible){
             savedMarkers.forEach(m=>m.setMap(null));
             markersVisible = false;
+            // 입력부 클리어
+            inpClear();
+
+            infowindow.close();
             return;
         }
 
@@ -128,11 +132,15 @@ async function getMarkers(){
                 image : markerImage
             });
 
-            // savedMarker에 id 셋팅
+            // savedMarker에 id, name 셋팅
             savedMarker.id = marker.id;
+            savedMarker.name = marker.name;
 
             // 마커에 클릭 이벤트 등록
             kakao.maps.event.addListener(savedMarker, 'click', ()=>{
+
+                // 현재 선택된 저장마커 데이터 셋팅
+                curSavedMarker = savedMarker;
 
                 // markerId 가져오기
                 const markerId = savedMarker.id;
@@ -184,34 +192,72 @@ function setMarker(){
         lat : inpLat.value,
         lng : inpLng.value
     }
-    fetch('/markers',{
-        method : 'POST',
-        headers : {
-            'Content-Type' : 'application/json'
-        },
-        body : JSON.stringify(obj)
-    })
-    .then(res => {
-        if(!res.ok){
-            throw new Error('서버 응답 에러 : ' + res.status)
-        }
-        return res.json()
-    })
-    .then(data => {
-        if(data.success){
-            alert("마커를 등록했습니다.");
 
-            // 카카오맵에 마커 찍기
-            const marker = tempMarker;
-            marker.setImage(markerImage);   // 마커이미지
-            marker.setTitle(obj.name);      // 마커타이틀
-        }else{
-            alert("마커 등록을 실패했습니다.")
+    if(curSavedMarker?.id){
+        let curMarkerId = curSavedMarker.id;
+
+        // 수정한 내용 있는지 확인
+        if(inpPlcName.value === curSavedMarker.name){
+            alert("수정할 내용이 없습니다.");
+            return;
         }
-    })
-    .catch(err=>{
-        console.error('요청실패:', err);
-    })
+
+        // 수정
+        fetch(`/markers/${curMarkerId}`,{
+            method : 'PUT',
+            headers : {
+                'Content-Type' : 'application/json'
+            },
+            body : JSON.stringify(obj)
+        })
+        .then(res => {
+            if(!res.ok){
+                throw new Error('서버 응답 에러 : ' + res.status)
+            }
+            return res.json()
+        })
+        .then(data => {
+            if(data.success){
+                if(!confirm("수정하시겠습니까?")) return;
+                alert("마커를 수정했습니다.");
+            }else{
+                alert("마커 수정을 실패했습니다.")
+            }
+        })
+        .catch(err=>{
+            console.error('요청실패:', err);
+        })
+    }else{
+        // 생성
+        fetch('/markers',{
+            method : 'POST',
+            headers : {
+                'Content-Type' : 'application/json'
+            },
+            body : JSON.stringify(obj)
+        })
+        .then(res => {
+            if(!res.ok){
+                throw new Error('서버 응답 에러 : ' + res.status)
+            }
+            return res.json()
+        })
+        .then(data => {
+            if(data.success){
+                alert("마커를 등록했습니다.");
+
+                // 카카오맵에 마커 찍기
+                const marker = tempMarker;
+                marker.setImage(markerImage);   // 마커이미지
+                marker.setTitle(obj.name);      // 마커타이틀
+            }else{
+                alert("마커 등록을 실패했습니다.")
+            }
+        })
+        .catch(err=>{
+            console.error('요청실패:', err);
+        })
+    }
 }
 
 // 개별 마커 삭제
@@ -238,6 +284,13 @@ function deleteMarker(id){
     
 }
 
+//====================헬퍼 함수 =============================//
+// 입력부 클리어
+function inpClear(){
+    inpPlcName.value = "";
+    inpLat.value = "";
+    inpLng.value = "";
+}
 
 </script>
 </body>
