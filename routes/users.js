@@ -4,7 +4,9 @@ const router = express.Router();                        // 해당 파일을 expr
 // const pool = require('../database/connect/mariadb');     // db pool 셋팅
 const {
     join, 
-    login} = require('../controller/UserController');
+    login,
+    check, 
+    logout} = require('../controller/UserController');
 
 router.use(express.json()) // http 외 모듈 'json'
 
@@ -13,6 +15,12 @@ router.post('/join', join);
 
 // 로그인
 router.post('/login', login);
+
+// 인증 체크
+router.get('/check', check);
+
+// 로그아웃
+router.post('/logout', logout);
 
 
 

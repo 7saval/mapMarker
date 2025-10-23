@@ -11,8 +11,13 @@ const join = async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        let sql = "INSERT INTO users (email, password, user_name) VALUES (?, ?, ?)";
-        let values = [email, password, userName];
+        let sql = "INSERT INTO users (email, password, user_name, salt) VALUES (?, ?, ?, ?)";
+
+        // 비밀번호 암호화
+        const salt = crypto.randomBytes(64).toString('base64'); // 무작위 문자열
+        const hashPassword = crypto.pbkdf2Sync(password, salt, 10000, 10, 'sha512').toString('base64'); // 해싱
+
+        let values = [email, hashPassword, userName, salt];
         const result = await conn.query(sql, values)
         // const [warnings] = await conn.query("SHOW WARNINGS");
         // console.log(warnings);
@@ -39,9 +44,37 @@ const login = async (req, res) => {
         conn = await pool.getConnection();
         let sql = `SELECT * FROM users WHERE email= ?`;
         const results = await conn.query(sql, email)
+        
         var loginInfo = results[0];
 
-        res.status(StatusCodes.OK).json(loginInfo);
+        // salt값 꺼내서 날 것의 비밀번호 암호화
+        const hashPassword = crypto.pbkdf2Sync(password, loginInfo.salt, 10000, 10, 'sha512').toString('base64');
+        
+        // 해시된 DB 비밀번호랑 비교
+        if(loginInfo?.password === hashPassword){
+            // token 발급 - 유효기간 설정
+            const token = jwt.sign({
+                email : loginInfo.email
+            }, process.env.PRIVATE_KEY, {
+                expiresIn : '30m',  // 유효기간
+                issuer : 'kyj'      // 발행인
+            })
+
+            // 쿠키에 토큰 담기 - 토큰 변수에 토큰 담기
+            res.cookie("token", token, {
+                httpOnly : true
+            });
+            console.log(token);
+            res.status(StatusCodes.OK).json({
+                success : true,
+                message : "로그인에 성공했습니다."
+            });
+        }else{
+            res.status(StatusCodes.UNAUTHORIZED).json({
+                success : false,
+                message : "아이디 또는 비밀번호가 일치하지 않습니다."
+            })
+        }        
     } catch (error) {
         console.error(error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -52,7 +85,45 @@ const login = async (req, res) => {
     }
 }
 
+// 로그인 상태인지 확인하는 인증 체크
+const check = async (req, res) => {
+    const token = req.cookies?.token;
+    if(!token){
+        // 인증되지 않은 상태는 200으로 응답, authenticated:false를 전달
+        return res.status(StatusCodes.OK).json({ success: false, authenticated: false });
+    }
+    try{
+        const decoded = jwt.verify(token, process.env.PRIVATE_KEY);
+        // 토큰의 이메일로 DB에서 사용자 이름을 조회해 응답에 포함
+        let conn;
+        try{
+            conn = await pool.getConnection();
+            const sql = 'SELECT user_name FROM users WHERE email = ?';
+            const rows = await conn.query(sql, decoded.email);
+            const userRow = rows[0];
+            const userName = userRow?.user_name || null;
+            return res.status(StatusCodes.OK).json({ success: true, authenticated: true, email: decoded.email, userName });
+        }catch(err){
+            console.error('check user query error', err);
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, authenticated: false });
+        }finally{
+            if(conn) conn.release();
+        }
+    }catch(err){
+        // 토큰이 유효하지 않은 경우도 200을 반환하여 클라이언트 네트워크 탭에서 401 에러가 보이지 않게 함
+        return res.status(StatusCodes.OK).json({ success: false, authenticated: false });
+    }
+}
+
+// 로그아웃
+const logout = async (req, res) => {
+    res.clearCookie('token');
+    return res.status(StatusCodes.OK).json({ success: true, message: '로그아웃 되었습니다.' });
+}
+
 module.exports = {
     login,
-    join
+    join,
+    check,
+    logout
 }

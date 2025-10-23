@@ -4,6 +4,7 @@ const express = require('express');
 const app = express();  // app 객체 생성
 const path = require('path');
 const {StatusCodes} = require('http-status-codes');
+const cookieParser = require('cookie-parser');
 
 // dotenv 모듈
 const dotenv = require('dotenv');
@@ -23,6 +24,7 @@ app.listen(port, () => {
 // 정적 파일 제공: index.html은 직접 치환해서 제공할 것이므로 auto index 제공을 비활성화합니다.
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use(express.json())
+app.use(cookieParser());
 
 const fs = require('fs');
 

@@ -31,8 +31,6 @@
             </form>
         </div>
     </main>
-    
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // 변수 선언
@@ -76,12 +74,11 @@
         }
         
     </script>
+    <script src="/js/nav.js"></script>
     <script>
-        fetch('/navBar.html')
-            .then(response => response.text())
-            .then(data => {
-                document.getElementById('navbar-container').innerHTML = data;
-            });
+        if(window.Nav && typeof window.Nav.load === 'function'){
+            window.Nav.load();
+        }
     </script>
 </body>
 </html>
