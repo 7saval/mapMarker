@@ -9,7 +9,8 @@ const pool = mariadb.createPool({
     password: '1234',
     database: 'MAPMARKER',
     charset: 'utf8mb4',
-    connectionLimit: 10
+    connectionLimit: 10,
+    dateStrings : true  // 날짜 형식 표기
 })
 
 // // 연결 테스트 함수

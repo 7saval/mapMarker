@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=9c27222d6d125405f41ceb7ee06ba495&libraries=services"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=%MAP_APP_KEY%&libraries=services"></script>
     <title>카카오맵 마커 프로젝트</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
 </head>
 <body>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+<!-- 내비게이션 바 위치 -->
+<div id="navbar-container"></div>
 <h1>카카오맵 마커 프로젝트</h1>
 <!-- 화면 UI -->
  <div class="d-flex w-100">
@@ -18,21 +21,60 @@
     <div class="w-25 ps-3 d-flex flex-column">
         <div id="info" class="flex-fill mb-3 p-3 border rounded bg-light">지도를 클릭해보세요</div>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary btn-lg flex-fill" onclick="setMarker()">즐겨찾기 등록</button>
+            <!-- <button type="button" class="btn btn-primary btn-lg flex-fill" onclick="setMarker()">즐겨찾기 등록</button> -->
+            <button type="button" class="btn btn-primary btn-lg flex-fill" onclick="getGroups()">즐겨찾기 등록</button>
             <button type="button" class="btn btn-secondary btn-lg flex-fill" onclick="deleteMarker()">삭제</button>
         </div>
     </div>
  </div>
-<button type="button" id="btn_fav" class="btn btn-dark mt-3" onclick="getMarkers()">즐겨찾기</button>
-<div class="input-group mb-3">
-    <span class="input-group-text" id="inputGroup-sizing-default">장소명</span>
-    <input type="text" id="txt_plc_name" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-default">
-</div>
-<div class="input-group">
-    <span class="input-group-text">위도/경도</span>
-    <input type="text" id="txt_lat" aria-label="lat" class="form-control" disabled>
-    <input type="text" id="txt_lng" aria-label="lng" class="form-control" disabled>
-</div>
+ <div class="d-flex w-100 mt-3">
+    <div class="w-50">
+        <button type="button" id="btn_fav" class="btn btn-dark" onclick="getMarkers()">즐겨찾기</button>
+        <div class="input-group mb-3">
+            <span class="input-group-text" id="inputGroup-sizing-default">장소명</span>
+            <input type="text" id="txt_plc_name" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-default">
+        </div>
+        <div class="input-group">
+            <span class="input-group-text">위도/경도</span>
+            <input type="text" id="txt_lat" aria-label="lat" class="form-control" disabled>
+            <input type="text" id="txt_lng" aria-label="lng" class="form-control" disabled>
+        </div>
+    </div>
+    <div class="w-50 ps-3">
+        <div class="border rounded p-3">
+            <p class="fw-bold">그룹 설정</p>
+            <!-- <div class="d-flex align-items-center mt-2">
+                <label class="form-check-label mb-0" for="chk_my_place">내 장소</label>
+                <input class="form-check-input ms-auto" type="radio" name="group_select" id="chk_my_place" checked>
+            </div> -->
+            <div id="group_list"></div>
+            <template id="tpl_group_list">
+                <div class="div_group_list d-flex align-items-center mt-2">
+                    <label class="form-check-label mb-0"></label><i id="icon_x" class="bi bi-x-square"></i>
+                    <input class="form-check-input ms-auto" type="radio" name="group_select">
+                </div>
+            </template>
+            <!-- 그룹 추가 버튼 -->
+            <div class="mt-3 d-grid gap-2 mx-auto">
+                <button id="btn_add_group" type="button" class="btn btn-outline-primary">+</button>
+            </div>
+            <div id="group_temp"></div>
+            <template id="tpl_add_group">
+                <div class="div_add_group d-flex gap-2 align-items-center mt-2">
+                    <button id="btn_del_group" type="button" class="btn btn-outline-dark">x</button>
+                    <input type="text" class="form-check-label mb-0">
+                    <button id="btn_fix_group" type="button" class="btn btn-dark">완료</button>
+                </div>
+            </template>
+            <!-- 즐겨찾기 저장 버튼 -->
+            <div class="mt-3 d-grid gap-2 mx-auto">
+                <button id="btn_set_marker" type="button" class="btn btn-primary" onclick="setMarker()">저장</button>
+            </div>
+        </div>
+    </div>
+    
+ </div>
+
 <!-- <button type="button" class="btn btn-primary" onclick="setMarker()">마커등록</button>
 <button type="button" class="btn btn-dark" onclick="deleteMarker()">삭제</button> -->
 <!-- ============================= 스크립트 ========================================== -->
@@ -46,10 +88,14 @@ var options = { //지도를 생성할 때 필요한 기본 옵션
 
 var map         = new kakao.maps.Map(container, options);    //지도 생성 및 객체 리턴
 var btnFav      = document.getElementById("btn_fav");        // 등록 버튼
-let inpPlcName  = document.getElementById("txt_plc_name");   // 장소명
-let inpLat      = document.getElementById("txt_lat");        // 위도
-let inpLng      = document.getElementById("txt_lng");        // 경도
-let divInfo     = document.getElementById("info");           // 주소
+const inpPlcName  = document.getElementById("txt_plc_name");   // 장소명
+const inpLat      = document.getElementById("txt_lat");        // 위도
+const inpLng      = document.getElementById("txt_lng");        // 경도
+const divInfo     = document.getElementById("info");           // 주소
+const btnAddGroup = document.getElementById("btn_add_group");  // 그룹 추가 버튼
+const btnSetMarker= document.getElementById("btn_set_marker");  // 즐겨찾기 저장 버튼
+const groupTemp   = document.getElementById("group_temp");     // 그룹 템포러리 컨테이너
+const groupList   = document.getElementById("group_list");     // 그룹 리스트 컨테이너
 
 let savedMarkers = [];  // 즐겨찾기 전역 배열
 let markersVisible = false;     // 즐겨찾기 마커 보임 여부
@@ -193,9 +239,10 @@ async function getMarkers(){
                 image : markerImage
             });
 
-            // savedMarker에 id, name 셋팅
+            // savedMarker에 id, name, grp_id 셋팅
             savedMarker.id = marker.id;
             savedMarker.name = marker.name;
+            savedMarker.grp_id = marker.grp_id;
 
             // 마커에 클릭 이벤트 등록
             kakao.maps.event.addListener(savedMarker, 'click', ()=>{
@@ -217,6 +264,14 @@ async function getMarkers(){
                 // 소숫점 7자리까지 표현
                 inpLat.value = Number(getLat.toFixed(7));
                 inpLng.value = Number(getLng.toFixed(7));
+
+                // 그룹 라디오가 렌더된 상태라면 해당 grp_id를 선택 상태로 반영
+                if (groupList) {
+                    const target = groupList.querySelector(`input[type="radio"][name="group_select"][value="${savedMarker.grp_id}"]`);
+                    if (target) {
+                        target.checked = true;
+                    }
+                }
 
                 // 저장된 마커 클릭 시에도 해당 위치의 상세 정보 가져오기
                 // 좌표 => 주소 변환
@@ -284,17 +339,28 @@ function setMarker(){
         return
     }
 
+    // 그룹 id 선택값 가져오기
+    const selectedRadio = groupList.querySelector('input[type="radio"][name="group_select"]:checked');
+    const grpId = selectedRadio ? parseInt(selectedRadio.value, 10) : null;
+    if (grpId == null || Number.isNaN(grpId)) { // value를 정수로 변환했을 때 유효한 숫자인지(NaN이 아닌지) 검증 
+        alert('그룹을 선택해주세요.');
+        return;
+    }
+
+
     let obj = {
         name : inpPlcName.value,
         lat : inpLat.value,
-        lng : inpLng.value
+        lng : inpLng.value,
+        grp_id : grpId
     }
 
     if(curSavedMarker?.id){
         let curMarkerId = curSavedMarker.id;
 
         // 수정한 내용 있는지 확인
-        if(inpPlcName.value === curSavedMarker.name){
+        // 이름과 그룹이 모두 동일하면 수정할 내용 없음
+        if(inpPlcName.value === curSavedMarker.name && grpId === curSavedMarker.grp_id){
             alert("수정할 내용이 없습니다.");
             return;
         }
@@ -383,6 +449,219 @@ function deleteMarker(){
     }    
 }
 
+//====================새 그룹 추가 (중복 방지) =============================//
+// function addNewGroupToExistingList(groupId, groupName) {
+//     if (!groupList) return;
+
+//     // 이미 해당 그룹이 존재하는지 확인
+//     const existingGroup = groupList.querySelector(`input[id="grp_${groupId}"]`);
+//     if (existingGroup) {
+//         console.log('이미 존재하는 그룹입니다:', groupName);
+//         return;
+//     }
+
+//     const tplList = document.getElementById('tpl_group_list');
+//     if (!tplList || !(tplList instanceof HTMLTemplateElement)) return;
+
+//     const clone = tplList.content.firstElementChild.cloneNode(true);
+
+//     const label = clone.querySelector('label.form-check-label');
+//     const radio = clone.querySelector('input.form-check-input');
+
+//     // grp_id, grp_name 셋팅
+//     const grpId = `grp_${groupId}`;
+//     const grpName = `${groupName}`;
+//     radio.id = grpId;
+//     radio.name = 'group_select';
+//     if (label) {
+//         label.setAttribute('for', grpId);
+//         label.textContent = grpName;
+//     }
+
+//     // 추후 식별을 위해 data 속성 부여
+//     clone.setAttribute('data-group-name', grpName);
+//     clone.setAttribute('data-group-id', grpId);
+
+//     groupList.appendChild(clone);
+// }
+
+//====================그룹 조회 =============================//
+function getGroups(){
+    // 데이터 가져오기
+    fetch('/groups')
+    .then(res => {
+        if(!res.ok) throw new Error(`서버에서 데이터를 불러오는 데 실패했습니다 : ${res.status}`);
+        return res.json();
+    })
+    .then(groups => {
+        // 실제 그룹리스트에 추가
+        if (!groupList) return;
+
+        // 기존 그룹 리스트 초기화 (중복 방지)
+        groupList.innerHTML = '';
+
+        const tplList = document.getElementById('tpl_group_list');
+        if (!tplList || !(tplList instanceof HTMLTemplateElement)) return;
+
+        groups.forEach((group, idx) => {
+            const clone = tplList.content.firstElementChild.cloneNode(true);
+
+            const label = clone.querySelector('label.form-check-label');
+            const radio = clone.querySelector('input.form-check-input');
+
+            // grp_id, grp_name 셋팅
+            const grpId = `grp_${group.grp_id}`;
+            const grpName = `${group.grp_name}`;
+            radio.id = grpId;
+            radio.name = 'group_select';
+            radio.value = String(group.grp_id);
+
+            // 선택된 저장 마커가 있는 경우
+            if(curSavedMarker?.grp_id){
+                if(radio.id === `grp_${curSavedMarker.grp_id}`){
+                    radio.checked = true;
+                }
+            }else{
+                // 데이터를 저장하지 않았을 경우, idx가 0인 '내장소'를 기본값으로 체크
+                if (idx === 0) {
+                    radio.checked = true;
+                }
+            }
+            
+            if (label) {
+                label.setAttribute('for', grpId);
+                label.textContent = grpName; // grpName 값 적용
+            }
+
+            // 추후 식별을 위해 data 속성 부여
+            clone.setAttribute('data-group-name', grpName);
+            clone.setAttribute('data-group-id', grpId);
+
+            groupList.appendChild(clone);
+        })
+
+    })
+    .catch(err => console.error('데이터 불러오기 실패:', err));
+}
+
+// 그룹리스트 'x' 삭제 버튼
+groupList?.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === 'icon_x') {
+        const row = target.closest('.div_group_list');
+        const radio = row.querySelector('input.form-check-input');
+        // 그룹 삭제
+        let grpId = radio.value;    // 그룹id
+
+        if(!confirm("그룹을 삭제하면 하위에 저장된 장소도 함께 삭제됩니다. 정말 삭제하겠습니까?")) return;
+        fetch(`/groups/${grpId}`,{
+            method : "DELETE"
+        }).then(res => {
+            if(!res.ok){
+                // 서버에서 에러 응답 반환 시
+                return res.text().then(msg => {
+                    throw new Error(msg || `삭제 실패 (status : ${res.status})`)
+                })
+            }
+            return res.json().catch(()=>({}));
+        }).then(()=>{
+            alert("삭제되었습니다.");
+            
+            // 행 ui 제거
+            if (row && groupList.contains(row)) {
+                groupList.removeChild(row);
+            }
+        }).catch((err)=>{
+            console.error(err);
+            alert(`삭제 중 오류가 발생했습니다 : ${err.message}`);
+        })
+    }
+});
+
+//====================그룹 추가 기능 =============================//
+// '+’ 버튼 클릭 시, group_temp가 비어있을 때만 1회 템플릿 추가
+btnAddGroup?.addEventListener('click', () => {
+    if (!groupTemp) return;
+    if (groupTemp.children.length > 0) return; // 이미 하나 있으면 무시
+
+    const tpl = document.getElementById('tpl_add_group');
+    if (!tpl || !(tpl instanceof HTMLTemplateElement)) return;
+
+    const clone = tpl.content.firstElementChild.cloneNode(true);
+
+    // 입력 상태 초기화
+    const inputs = clone.querySelectorAll('input');
+    inputs.forEach((el) => {
+        el.value = '';
+    });
+
+    groupTemp.appendChild(clone);
+});
+
+// 'x' 삭제 버튼: 해당 행 제거 (이벤트 위임)
+groupTemp?.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === 'btn_del_group') {
+        const row = target.closest('.div_add_group');
+        if (row && groupTemp.contains(row)) {
+            groupTemp.removeChild(row);
+        }
+    }
+});
+
+// 완료 버튼: 같은 행의 입력값 읽어 검증 (이벤트 위임)
+groupTemp?.addEventListener('click', (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === 'btn_fix_group') {
+        const row = target.closest('.div_add_group');
+        if (!row) return;
+        const nameInput = row.querySelector('input[type="text"]');
+        const name = nameInput ? nameInput.value.trim() : '';
+        if (!name) {
+            alert('그룹명을 입력해주세요');
+            return;
+        }
+        
+        // 그룹 생성
+        fetch('/groups',{
+            method : 'POST',
+            headers : {
+                'Content-Type' : 'application/json'
+            },
+            body : JSON.stringify({grpName:name})
+        })
+        .then(res => {
+            if(!res.ok){
+                throw new Error('서버 응답 에러 : ' + res.status)
+            }
+            return res.json()
+        })
+        .then(data => {
+            if(data.success){
+                alert("그룹 저장 성공");
+
+                // 방법 1: 전체 그룹 재조회 (기본 방식)
+                getGroups();
+
+                // 방법 2: 새로 저장된 그룹만 추가 (주석 해제하여 사용 가능)
+                // addNewGroupToExistingList(data.id, name);
+
+                // 임시 행 제거
+                if (row && groupTemp.contains(row)) {
+                    groupTemp.removeChild(row);
+                }
+            }else{
+                alert("그룹 저장 실패")
+            }
+        })
+        .catch(err=>{
+            console.error('요청실패:', err);
+        })        
+    }
+});
 //====================헬퍼 함수 =============================//
 // 입력부 클리어
 function inpClear(){
@@ -439,5 +718,12 @@ function formatPlaceInfo(place) {
 }
 
 </script>
+<script>
+        fetch('/navBar.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('navbar-container').innerHTML = data;
+            });
+    </script>
 </body>
 </html>
