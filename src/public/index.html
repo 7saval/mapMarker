@@ -12,7 +12,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
 <!-- 내비게이션 바 위치 -->
 <div id="navbar-container"></div>
-<h1>카카오맵 마커 프로젝트</h1>
+<button type="button" id="btn_fav" class="btn btn-dark mb-2" onclick="getMarkers()">즐겨찾기 모아보기</button>
 <!-- 화면 UI -->
  <div class="d-flex w-100">
     <!-- 지도 위치 -->
@@ -22,14 +22,13 @@
         <div id="info" class="flex-fill mb-3 p-3 border rounded bg-light">지도를 클릭해보세요</div>
         <div class="d-flex gap-2">
             <!-- <button type="button" class="btn btn-primary btn-lg flex-fill" onclick="setMarker()">즐겨찾기 등록</button> -->
-            <button type="button" class="btn btn-primary btn-lg flex-fill" onclick="getGroups()">즐겨찾기 등록</button>
+            <button type="button" class="btn btn-primary btn-lg flex-fill" onclick="setFavorite()">즐겨찾기</button>
             <button type="button" class="btn btn-secondary btn-lg flex-fill" onclick="deleteMarker()">삭제</button>
         </div>
     </div>
  </div>
  <div class="d-flex w-100 mt-3">
     <div class="w-50">
-        <button type="button" id="btn_fav" class="btn btn-dark" onclick="getMarkers()">즐겨찾기</button>
         <div class="input-group mb-3">
             <span class="input-group-text" id="inputGroup-sizing-default">장소명</span>
             <input type="text" id="txt_plc_name" class="form-control" aria-label="Sizing example input" aria-describedby="inputGroup-sizing-default">
@@ -40,7 +39,7 @@
             <input type="text" id="txt_lng" aria-label="lng" class="form-control" disabled>
         </div>
     </div>
-    <div class="w-50 ps-3">
+    <div id="divGroup" style="visibility: hidden;" class="w-50 ps-3">
         <div class="border rounded p-3">
             <p class="fw-bold">그룹 설정</p>
             <!-- <div class="d-flex align-items-center mt-2">
@@ -94,12 +93,12 @@ const inpLng      = document.getElementById("txt_lng");        // 경도
 const divInfo     = document.getElementById("info");           // 주소
 const btnAddGroup = document.getElementById("btn_add_group");  // 그룹 추가 버튼
 const btnSetMarker= document.getElementById("btn_set_marker");  // 즐겨찾기 저장 버튼
+const divGroup    = document.getElementById("divGroup");        // 그룹div
 const groupTemp   = document.getElementById("group_temp");     // 그룹 템포러리 컨테이너
 const groupList   = document.getElementById("group_list");     // 그룹 리스트 컨테이너
 
 let savedMarkers = [];  // 즐겨찾기 전역 배열
 let markersVisible = false;     // 즐겨찾기 마커 보임 여부
-var infowindow;     // 인포윈도우
 let curSavedMarker = null;
 
 // 즐겨찾기 마커 이미지
@@ -213,18 +212,22 @@ async function getMarkers(){
             // 입력부 클리어
             inpClear();
 
-            infowindow.close();
             return;
         }
 
         // 서버에서 데이터 가져오기
-        const res = await fetch('/markers');       // 요청 대기
-        if (!res.ok) { // fetch가 성공했는지 (HTTP 상태 코드가 200-299인지) 확인합니다.
-            console.error('서버에서 마커 데이터를 가져오는데 실패했습니다. 상태:', res.status);
-            return;
+        const res = await fetch('/markers');    // 요청 대기
+        const data = await res.json();          // body는 한 번만 읽기
+
+        if (!res.ok) {
+            if (res.status === 401) {
+                alert(data.message || '인증이 필요합니다.');
+                throw new Error('UNAUTHORIZED');
+            }
+            throw new Error('서버에서 마커 데이터를 가져오는데 실패했습니다. 상태: ' + res.status);
         }
 
-        const markers = await res.json()           // JSON 변환 대기
+        const markers = data; // 정상 응답 데이터
 
         // 기존 마커 초기화
         savedMarkers.forEach(m=>m.setMap(null));
@@ -329,6 +332,7 @@ async function getMarkers(){
 
     } catch (error) {
         console.error(error); // 에러 처리
+        alert(error);
     }
 }
 
@@ -374,15 +378,22 @@ function setMarker(){
             body : JSON.stringify(obj)
         })
         .then(res => {
-            if(!res.ok){
-                throw new Error('서버 응답 에러 : ' + res.status)
+            if(res.ok){
+                return res.json();
+            }else if (res.status === 401){
+                return res.json().then(errMsg => {
+                    alert(errMsg.message || '로그인이 필요합니다.');
+                    throw new Error('UNAUTHORIZED');    // 체인 중단
+                });
+            } else{
+                throw new Error('서버에서 데이터 수정에 실패했습니다. 상태:', res.status);
             }
-            return res.json()
         })
         .then(data => {
             if(data.success){
                 if(!confirm("수정하시겠습니까?")) return;
                 alert("마커를 수정했습니다.");
+                getMarkers();   // 마커 전체 재조회
             }else{
                 alert("마커 수정을 실패했습니다.")
             }
@@ -400,10 +411,16 @@ function setMarker(){
             body : JSON.stringify(obj)
         })
         .then(res => {
-            if(!res.ok){
-                throw new Error('서버 응답 에러 : ' + res.status)
+            if(res.ok){
+                return res.json();
+            }else if (res.status === 401){
+                return res.json().then(errMsg => {
+                    alert(errMsg.message || '로그인이 필요합니다.');
+                    throw new Error('UNAUTHORIZED');    // 체인 중단
+                });
+            } else{
+                throw new Error('서버에서 데이터 저장에 실패했습니다. 상태:', res.status);
             }
-            return res.json()
         })
         .then(data => {
             if(data.success){
@@ -413,6 +430,8 @@ function setMarker(){
                 const marker = tempMarker;
                 marker.setImage(markerImage);   // 마커이미지
                 marker.setTitle(obj.name);      // 마커타이틀
+
+                getMarkers();   // 마커 전체 재조회
             }else{
                 alert("마커 등록을 실패했습니다.")
             }
@@ -432,13 +451,16 @@ function deleteMarker(){
         fetch(`/markers/${curMarkerId}`,{
             method : "DELETE"
         }).then(res => {
-            if(!res.ok){
-                // 서버에서 에러 응답 반환 시
-                return res.text().then(msg => {
-                    throw new Error(msg || `삭제 실패 (status : ${res.status})`)
-                })
+            if(res.ok){
+                return res.json().catch(()=>({}));
+            }else if (res.status === 401){
+                return res.json().then(errMsg => {
+                    alert(errMsg.message || '로그인이 필요합니다.');
+                    throw new Error('UNAUTHORIZED');    // 체인 중단
+                });
+            } else{
+                throw new Error(`삭제 실패 (status : ${res.status})`);
             }
-            return res.json().catch(()=>({}));
         }).then(()=>{
             alert("삭제되었습니다.");
             window.location.reload();
@@ -485,13 +507,35 @@ function deleteMarker(){
 //     groupList.appendChild(clone);
 // }
 
+//==================== 즐겨찾기 등록 =============================//
+function setFavorite(){
+    // 그룹 div 보이기
+    if(divGroup.style.visibility == 'hidden') {
+        divGroup.setAttribute('style', 'visibility : visible');
+    }
+    else if(divGroup.style.visibility == 'visible') {
+        divGroup.setAttribute('style','visibility : hidden');
+    }
+
+    // 그룹 조회
+    getGroups();
+
+}
 //====================그룹 조회 =============================//
 function getGroups(){
     // 데이터 가져오기
     fetch('/groups')
     .then(res => {
-        if(!res.ok) throw new Error(`서버에서 데이터를 불러오는 데 실패했습니다 : ${res.status}`);
-        return res.json();
+        if(res.ok){
+            return res.json();
+        }else if (res.status === 401){
+            return res.json().then(errMsg => {
+                alert(errMsg.message || '로그인이 필요합니다.');
+                throw new Error('UNAUTHORIZED');    // 체인 중단
+            });
+        } else{
+            throw new Error('그룹 데이터를 가져오는데 실패했습니다. 상태:', res.status);
+        }
     })
     .then(groups => {
         // 실제 그룹리스트에 추가
@@ -508,6 +552,7 @@ function getGroups(){
 
             const label = clone.querySelector('label.form-check-label');
             const radio = clone.querySelector('input.form-check-input');
+            // const icon  = clone.querySelector('i.bi-x-square');
 
             // grp_id, grp_name 셋팅
             const grpId = `grp_${group.grp_id}`;
@@ -533,6 +578,12 @@ function getGroups(){
                 label.textContent = grpName; // grpName 값 적용
             }
 
+            // 그룹 이름이 기본 그룹인 '내 장소'면 x삭제버튼 숨김 처리
+            if(group.grp_name === '내 장소'){
+                let iconX = label.nextSibling;
+                iconX.setAttribute('style', 'display:none');
+            }
+
             // 추후 식별을 위해 data 속성 부여
             clone.setAttribute('data-group-name', grpName);
             clone.setAttribute('data-group-id', grpId);
@@ -555,16 +606,21 @@ groupList?.addEventListener('click', (e) => {
         let grpId = radio.value;    // 그룹id
 
         if(!confirm("그룹을 삭제하면 하위에 저장된 장소도 함께 삭제됩니다. 정말 삭제하겠습니까?")) return;
+        
         fetch(`/groups/${grpId}`,{
             method : "DELETE"
         }).then(res => {
-            if(!res.ok){
-                // 서버에서 에러 응답 반환 시
-                return res.text().then(msg => {
-                    throw new Error(msg || `삭제 실패 (status : ${res.status})`)
-                })
+            if(res.ok){
+                return res.json().catch(()=>({}));
+            }else if (res.status === 401){
+                return res.json().then(errMsg => {
+                    alert(errMsg.message || '로그인이 필요합니다.');
+                    throw new Error('UNAUTHORIZED');    // 체인 중단
+                });
+            } else{
+                throw new Error(`삭제 실패 (status : ${res.status})`);
             }
-            return res.json().catch(()=>({}));
+            
         }).then(()=>{
             alert("삭제되었습니다.");
             
@@ -634,10 +690,16 @@ groupTemp?.addEventListener('click', (e) => {
             body : JSON.stringify({grpName:name})
         })
         .then(res => {
-            if(!res.ok){
-                throw new Error('서버 응답 에러 : ' + res.status)
+            if(res.ok){
+                return res.json();
+            }else if (res.status === 401){
+                return res.json().then(errMsg => {
+                    alert(errMsg.message || '로그인이 필요합니다.');
+                    throw new Error('UNAUTHORIZED');    // 체인 중단
+                });
+            } else{
+                throw new Error('서버에서 그룹 데이터 저장에 실패했습니다. 상태:', res.status);
             }
-            return res.json()
         })
         .then(data => {
             if(data.success){

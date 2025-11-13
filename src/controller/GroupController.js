@@ -1,13 +1,21 @@
 const pool = require('../database/connect/mariadb');     // db pool 셋팅
 const {StatusCodes} = require('http-status-codes');    // status code 모듈
+const {verifyUser} = require('../utils/auth');
 
 // 그룹 전체 조회
 const allGroups = async (req, res) => {
     let conn;
     try {
+        const user = await verifyUser(req);
+
+        if(!user) return res.status(StatusCodes.UNAUTHORIZED).json({
+            message: '로그인이 필요합니다.'
+        });
+
         conn = await pool.getConnection();
-        let rows = await conn.query("SELECT * FROM groups")
-        res.json(rows)
+        let rows = await conn.query("SELECT * FROM groups WHERE user_id = ?", user.user_id);
+        if(!rows[0]) return;
+        res.json(rows);
     } catch (error) {
         console.error(error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: 'Internal Server Error' });
@@ -21,10 +29,16 @@ const setGroup = async (req, res) => {
     const {grpName} = req.body
     let conn;
     try {
+        const user = await verifyUser(req);
+
+        if(!user) return res.status(StatusCodes.UNAUTHORIZED).json({
+            message: '로그인이 필요합니다.'
+        });
+
         conn = await pool.getConnection();
-        let sql = "INSERT INTO groups (grp_name) VALUES (?)";
-        let values = [grpName];
-        const result = await conn.query(sql, values)
+        let sql = "INSERT INTO groups (grp_name, user_id) VALUES (?, ?)";
+        let values = [grpName, user.user_id];
+        const result = await conn.query(sql, values);
         // const [warnings] = await conn.query("SHOW WARNINGS");
         // console.log(warnings);
         res.json({
@@ -47,10 +61,17 @@ const removeGroup = async (req,res)=>{
     id = parseInt(id);
     let conn;
     try {
+        const user = await verifyUser(req);
+
+        if(!user) return res.status(StatusCodes.UNAUTHORIZED).json({
+            message: '로그인이 필요합니다.'
+        });
+
         conn = await pool.getConnection();
-        let sql = "DELETE FROM groups WHERE grp_id = ?";
-        const result = await conn.query(sql, id)
-        console.log(result)
+        let sql = "DELETE FROM groups WHERE grp_id = ? AND user_id = ?";
+        let values = [id, user.user_id];
+        const result = await conn.query(sql, values);
+        console.log(result);
         res.json({
             success : true
         })

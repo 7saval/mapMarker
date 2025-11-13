@@ -1,5 +1,6 @@
 const pool = require('../database/connect/mariadb');     // db pool 셋팅
 const {StatusCodes} = require('http-status-codes');    // status code 모듈
+const { verifyUser } = require('../utils/auth');    // 로그인 인증
 const jwt = require('jsonwebtoken');    // jwt 모듈
 const crypto = require('crypto');    // crypto 모듈
 const dotenv = require('dotenv');   // dotenv 모듈
@@ -11,16 +12,23 @@ const join = async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        let sql = "INSERT INTO users (email, password, user_name, salt) VALUES (?, ?, ?, ?)";
+        let sql = `INSERT INTO users (email, password, user_name, salt) VALUES (?, ?, ?, ?)`;
+
+        let user_id;
 
         // 비밀번호 암호화
         const salt = crypto.randomBytes(64).toString('base64'); // 무작위 문자열
         const hashPassword = crypto.pbkdf2Sync(password, salt, 10000, 10, 'sha512').toString('base64'); // 해싱
 
         let values = [email, hashPassword, userName, salt];
-        const result = await conn.query(sql, values)
-        // const [warnings] = await conn.query("SHOW WARNINGS");
-        // console.log(warnings);
+        const result = await conn.query(sql, values);
+        
+        user_id = Number(result.insertId);
+
+        // 내 장소 그룹 추가
+        sql = `INSERT INTO groups (grp_name, user_id) VALUES ('내 장소', ?)`;
+        const result2 = await conn.query(sql, user_id);
+
         res.status(StatusCodes.CREATED).json({
             success : true,
             message : "회원가입에 성공했습니다.",
@@ -87,31 +95,21 @@ const login = async (req, res) => {
 
 // 로그인 상태인지 확인하는 인증 체크
 const check = async (req, res) => {
-    const token = req.cookies?.token;
-    if(!token){
-        // 인증되지 않은 상태는 200으로 응답, authenticated:false를 전달
-        return res.status(StatusCodes.OK).json({ success: false, authenticated: false });
-    }
-    try{
-        const decoded = jwt.verify(token, process.env.PRIVATE_KEY);
-        // 토큰의 이메일로 DB에서 사용자 이름을 조회해 응답에 포함
-        let conn;
-        try{
-            conn = await pool.getConnection();
-            const sql = 'SELECT user_name FROM users WHERE email = ?';
-            const rows = await conn.query(sql, decoded.email);
-            const userRow = rows[0];
-            const userName = userRow?.user_name || null;
-            return res.status(StatusCodes.OK).json({ success: true, authenticated: true, email: decoded.email, userName });
-        }catch(err){
-            console.error('check user query error', err);
-            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, authenticated: false });
-        }finally{
-            if(conn) conn.release();
-        }
-    }catch(err){
-        // 토큰이 유효하지 않은 경우도 200을 반환하여 클라이언트 네트워크 탭에서 401 에러가 보이지 않게 함
-        return res.status(StatusCodes.OK).json({ success: false, authenticated: false });
+    const user = await verifyUser(req); // DB에 user있는지 확인
+
+    if(user){
+        // db에 user 있으면 res OK 응답 전달
+        return res.status(StatusCodes.OK).json({ 
+            success: true, 
+            authenticated: true,
+            email: user.email,
+            userName: user.user_name
+        });
+    }else{
+        return res.status(StatusCodes.OK).json({ 
+            success: false, 
+            authenticated: false
+        });
     }
 }
 

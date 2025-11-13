@@ -8,7 +8,7 @@ const cookieParser = require('cookie-parser');
 
 // dotenv 모듈
 const dotenv = require('dotenv');
-dotenv.config();
+dotenv.config(); // .env 파일을 src 폴더에 두면 자동으로 찾습니다
 
 const port = process.env.PORT || 3001;       // port 셋팅 (기본값 3001)
 
