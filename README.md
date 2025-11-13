@@ -160,6 +160,9 @@ mapProject/
 ```
 
 #### **3.3. 데이터베이스 설계 (Schema)**
+- **DB ERD 설계**
+<img width="788" height="500" alt="Image" src="https://github.com/user-attachments/assets/51f9d736-8a06-49c0-b991-11fc0d09e8e9" />
+
 - **Database:** `MAPMARKER`
 
 **users 테이블:**
