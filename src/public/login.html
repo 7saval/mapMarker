@@ -58,6 +58,15 @@
                 // 200~299 성공 
                 if(res.ok){
                     return res.json();
+                } else if (res.status === 400){     // 잘못된 값 입력력 시
+                    return res.json().then(errors => {
+                        if(Array.isArray(errors) && errors.length > 0){
+                            alert(errors[0].msg || '입력 정보를 확인해주세요.');
+                        } else{
+                            alert('입력 정보를 확인해주세요.');
+                        }
+                        throw new Error('Validation Error');
+                    });
                 } else if (res.status === 401){     // 비인증 시
                     return res.json();
                 } else{                             // 500 서버 에러
@@ -77,8 +86,11 @@
                 
             })
             .catch(err => {
-                console.error('요청 실패 : ' + err);
-                alert(err);
+                // Validation Error는 이미 알림창으로 표시했으므로 콘솔만 출력
+                if(err.message !== 'Validation Error') {
+                    console.error('요청 실패 : ' + err);
+                    alert(err);
+                }
             })
 
         }

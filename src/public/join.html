@@ -57,6 +57,19 @@
                 body : JSON.stringify(data)
             })
             .then(res => {
+                // 유효성 검사 실패 시 (400 Bad Request)
+                if(res.status === 400) {
+                    return res.json().then(errors => {
+                        // express-validator는 배열 형태로 에러를 반환
+                        if(Array.isArray(errors) && errors.length > 0) {
+                            // 첫 번째 에러 메시지를 알림창으로 표시
+                            alert(errors[0].msg || '입력 정보를 확인해주세요.');
+                        } else {
+                            alert('입력 정보를 확인해주세요.');
+                        }
+                        throw new Error('Validation Error');
+                    });
+                }
                 if(!res.ok) throw new Error('서버 응답 에러 : ' + res.status);
                 return res.json()
             })
@@ -69,7 +82,10 @@
                 }
             })
             .catch(err => {
-                console.error('요청 실패 : ', err);
+                // Validation Error는 이미 알림창으로 표시했으므로 콘솔만 출력
+                if(err.message !== 'Validation Error') {
+                    console.error('요청 실패 : ', err);
+                }
             })
         }
         
